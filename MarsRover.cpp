@@ -1,93 +1,54 @@
-// MarsRover.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
-
-				// WORK IN PROGRESS // 
-
 #include <iostream>
 #include <cmath>
+#include <cstdlib>
 #include <thread>
-#include <chrono>
+#include <fstream>
+#include <vector>
 #include <mutex>
 #include <condition_variable>
+#include <string>
+int pos = 0;
 
-std::condition_variable conditionVar;
 std::mutex mtx;
-bool isReady = false; 
+std::condition_variable conditionVar;
+bool isReady = false;
 
-void alert_message(std::string issue_message, std::string numOfWheel) {
-	std::cout << issue_message << numOfWheel << std::endl;
+void printArray(std::vector<std::string> array, int pos) {
+
+	std::unique_lock<std::mutex> lock(mtx);		//critical section
+	while (!isReady) conditionVar.wait(lock);
+
+	std::cout << array.at(pos) << std::endl;
 	std::this_thread::sleep_for(std::chrono::seconds(2));
+
+}
+void increasePosition() {
+	pos++;
 }
 
-void report_back_to_earth(std::string issue) {
-	std::cout << "Reporting faults to earth!" << std::endl; 
+void start() {
+	std::unique_lock<std::mutex> lck(mtx);		//critical section
+	isReady = true;
+	conditionVar.notify_all();
 }
+int main() {
 
-bool success() {
-	return 0;
-}
+	std::string line;
+	std::vector<std::string> poemLines = {};
+	std::ifstream poem("poem.txt");
+	std::thread t1, t2;
 
-void scenario(short num, std::string numOfWheel) {
-	if (num > 95) {
-		alert_message("Failure on wheel number: ", numOfWheel);
-		report_back_to_earth("Failure on wheel number: " + numOfWheel);
+
+	while (getline(poem, line)) {
+		poemLines.emplace_back(line);
 	}
-	if (num > 80) alert_message("Wheel number " , numOfWheel + " has been dropped.");
-	if (num > 70) alert_message("There is something in the way of wheel number: ", numOfWheel);
-	else alert_message("No problems yet.", "");
-	isReady = true;
-	conditionVar.notify_one();
-}
+	start();
+	while (pos < poemLines.size()) {
+		t2 = std::thread(printArray, poemLines, pos);
+		t2.join();
+		t1 = std::thread(increasePosition);
+		t1.join();
+	}
 
-void begin() {
-	isReady = true;
-	conditionVar.notify_one();
-}
-
-int main()
-{
-	short randomInt;
-	int scenarioType;
-
-	std::thread wheelOne, wheelTwo, wheelThree, wheelFour, wheelFive, wheelSix;
-
-	do {
-		std::unique_lock<std::mutex> lock(mtx); 
-		begin();
-
-		while (!isReady) conditionVar.wait (lock);
-		randomInt = rand() % 100 + 1;
-		wheelOne = std::thread(scenario, randomInt, "1");
-
-		while (!isReady) conditionVar.wait(lock);
-		randomInt = rand() % 100 + 1;
-		wheelTwo = std::thread(scenario, randomInt, "2");
-
-		while (!isReady) conditionVar.wait(lock);
-		randomInt = rand() % 100 + 1;
-		wheelThree = std::thread(scenario, randomInt, "3");
-
-		while (!isReady) conditionVar.wait(lock);
-		randomInt = rand() % 100 + 1;
-		wheelFour = std::thread(scenario, randomInt, "4");
-
-		while (!isReady) conditionVar.wait(lock);
-		randomInt = rand() % 100 + 1;
-		wheelFive = std::thread(scenario, randomInt, "5");
-
-		while (!isReady) conditionVar.wait(lock);
-		randomInt = rand() % 100 + 1;
-		wheelSix = std::thread(scenario, randomInt, "6");
-
-		wheelOne.join();
-		wheelTwo.join();
-		wheelThree.join();
-		wheelFour.join();
-		wheelFive.join();
-		wheelSix.join();
-		
-		std::this_thread::sleep_for(std::chrono::seconds(2));
-
-	} while (true);
 	return 0;
 }
